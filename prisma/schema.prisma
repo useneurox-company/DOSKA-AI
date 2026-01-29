@@ -1,0 +1,614 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  password        String
+  name            String?
+  phone           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  ads             Ad[]
+
+  // Подписка и лимиты
+  freeViewsUsed   Int       @default(0)     // Использовано бесплатных просмотров (лимит 10)
+  hasSubscription Boolean   @default(false) // Есть ли активная подписка
+  subscriptionEnd DateTime?                 // Дата окончания подписки
+}
+
+model Category {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
+  ads  Ad[]
+}
+
+model City {
+  id   String @id @default(cuid())
+  name String @unique
+  ads  Ad[]
+}
+
+model Ad {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  price       Int
+  source      String    @default("user") // "user" | "telegram" | "vk" | "forum"
+  sourceUrl   String?
+  isVerified  Boolean   @default(false)
+  type        String?   // "request" | "offer" - Куплю / Продам
+
+  // Контакты
+  contactPhone    String?  // Телефон для связи
+  contactUsername String?  // @username в Telegram
+  contactName     String?  // Имя контактного лица
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
+
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id])
+
+  cityId      String
+  city        City      @relation(fields: [cityId], references: [id])
+
+  images      AdImage[]
+
+  @@index([categoryId])
+  @@index([cityId])
+  @@index([source])
+  @@index([createdAt])
+  @@index([type])
+}
+
+model AdImage {
+  id    String @id @default(cuid())
+  url   String
+  adId  String
+  ad    Ad     @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([adId])
+}
+
+// Telegram Parser Models
+
+model TelegramSource {
+  id            String    @id @default(cuid())
+  name          String                    // "Металл Россия"
+  username      String?   @unique         // "@MetallRussia"
+  chatId        String?                   // для приватных групп
+  defaultCity   String?                   // Город по умолчанию для группы
+  isActive      Boolean   @default(true)
+  lastParsed    DateTime?
+  parseFromDate DateTime?                 // Парсить сообщения начиная с этой даты
+  messageCount  Int       @default(0)
+  createdAt     DateTime  @default(now())
+
+  rawMessages RawMessage[]
+  requests    Request[]
+}
+
+model TelegramSession {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  session   String   @db.Text           // StringSession для GramJS
+  name      String?                      // Имя аккаунта "Основной", "Запасной"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model ParserSettings {
+  id                   String   @id @default("default")
+  intervalMinutes      Int      @default(15)      // Интервал парсинга
+  messagesPerRequest   Int      @default(100)     // Сообщений за запрос
+  delayBetweenRequests Int      @default(1000)    // Пауза мс между запросами
+  maxMessagesPerChannel Int?                      // Лимит сообщений (null = все)
+  isSchedulerEnabled   Boolean  @default(true)    // Вкл/выкл автопарсинг
+  updatedAt            DateTime @updatedAt
+
+  // === ГЛОБАЛЬНАЯ ДАТА ПАРСИНГА ===
+  globalParseFromDate  DateTime?                  // Парсить с этой даты для ВСЕХ каналов
+
+  // === Pipeline Settings ===
+  autoPipelineEnabled    Boolean @default(false)  // Главный переключатель автопайплайна
+  autoClassifyEnabled    Boolean @default(true)   // Авто-классификация после парсинга
+  autoEnrichEnabled      Boolean @default(true)   // Авто-обогащение после классификации
+  autoMatchEnabled       Boolean @default(true)   // Авто-матчинг после обогащения
+}
+
+model RawMessage {
+  id             String   @id @default(cuid())
+  messageId      Int                        // ID сообщения в Telegram
+  text           String?  @db.Text          // Текст сообщения
+  date           DateTime                   // Дата сообщения
+  senderId       String?                    // ID отправителя
+  senderName     String?                    // Имя отправителя (First Last)
+  senderUsername String?                    // @username отправителя
+  senderPhone    String?                    // Телефон отправителя (если доступен)
+  hasMedia       Boolean  @default(false)   // Есть ли медиа
+  mediaType      String?                    // "photo" | "document" | etc
+  mediaUrl       String?                    // URL/путь к скачанному медиа файлу
+  mediaFileName  String?                    // Оригинальное имя файла
+
+  // Lazy Download: скачиваем только после классификации
+  telegramFileId     String?                // ID файла в Telegram (для отложенной загрузки)
+  telegramAccessHash String?                // Access hash для Telegram API
+  mediaDownloaded    Boolean  @default(false) // Скачан ли файл на диск
+
+  isProcessed    Boolean  @default(false)   // Обработано ли AI
+
+  // AI Analysis Fields
+  aiAnalyzed        Boolean  @default(false)   // Проанализировано ли AI
+
+  // Старое поле (для обратной совместимости, потом удалим)
+  aiCategory        String?                    // DEPRECATED: используй aiMessageType
+
+  // Уровень 1: Тип объявления
+  aiMessageType     String?                    // "request" | "offer" | "spam" | "other"
+
+  // Уровень 2: Категория товара (только для request/offer)
+  aiProductCategory String?                    // "metal" | "other"
+  aiHasContacts     Boolean?                   // Есть ли контакты в сообщении
+
+  // Уровень 3: Номенклатура (AI определяет сам)
+  aiNomenclature    String?                    // "арматура" | "труба" | "кирпич" и т.д.
+
+  // Детали объявления
+  aiMaterial        String?                    // Полное описание материала
+  aiPrice           Int?                       // Цена в рублях
+  aiPriceUnit       String?                    // "за тонну" | "за штуку" | "за м2"
+  aiQuantity        String?                    // Количество с единицами
+  aiCity            String?                    // Город
+  aiPhone           String?                    // Телефон из объявления
+  aiConfidence      Float?                     // Уверенность 0-1
+  aiReason          String?                    // Причина классификации от AI
+  aiRawResponse     String?  @db.Text          // Полный ответ AI (JSON)
+  aiAnalyzedAt      DateTime?                  // Когда проанализировано
+  aiModel           String?                    // "gemini-lite" | "gemini-smart"
+
+  // Stage 2: Обогащение
+  enrichedAt        DateTime?                  // Когда обогащено
+  enrichedData      String?  @db.Text          // JSON с обогащёнными данными карточки
+
+  // Модерация
+  moderationStatus  String   @default("pending")  // pending | approved | rejected
+  moderatedAt       DateTime?
+
+  // Связь с категорией обогащения
+  enrichmentCategoryId  String?
+  enrichmentCategory    EnrichmentCategory? @relation(fields: [enrichmentCategoryId], references: [id])
+  enrichmentJobId       String?              // ID задания обогащения
+
+  sourceId       String
+  source         TelegramSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  // Связь с агрегированной заявкой
+  requestId      String?
+  request        Request? @relation(fields: [requestId], references: [id])
+
+  // CRM: Матчи где эта карточка участвует
+  matchesAsRequest  Match[] @relation("MatchRequest")
+  matchesAsOffer    Match[] @relation("MatchOffer")
+
+  createdAt      DateTime @default(now())
+
+  @@unique([sourceId, messageId])
+  @@index([isProcessed])
+  @@index([aiAnalyzed])
+  @@index([aiCategory])
+  @@index([aiMessageType])
+  @@index([aiProductCategory])
+  @@index([aiNomenclature])
+  @@index([aiMessageType, aiProductCategory])
+  @@index([date])
+  @@index([senderUsername])
+  @@index([requestId])
+  @@index([enrichedAt])
+  @@index([enrichmentCategoryId])
+  @@index([enrichmentJobId])
+  @@index([moderationStatus])
+}
+
+// ============================================
+// КАТЕГОРИИ ОБОГАЩЕНИЯ (для мульти-категорийного обогащения)
+// ============================================
+
+model EnrichmentCategory {
+  id              String   @id @default(cuid())
+  slug            String   @unique          // "metal", "construction"
+  name            String                    // "Металлопрокат"
+  description     String?
+  categoryPrompt  String   @db.Text         // Специфичный промпт для категории
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+
+  jobs          EnrichmentJob[]
+  rawMessages   RawMessage[]
+  subcategories Subcategory[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+// Подкатегории (создаются динамически AI при обогащении)
+model Subcategory {
+  id            String   @id @default(cuid())
+  name          String                        // Оригинальное название от AI
+  normalized    String                        // Нормализованное (lowercase, trim)
+
+  categoryId    String
+  category      EnrichmentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  usageCount    Int      @default(1)          // Сколько раз использовано
+  isActive      Boolean  @default(true)       // Для скрытия при чистке
+
+  // Для объединения дубликатов
+  mergedIntoId  String?                       // Если объединено в другую подкатегорию
+  mergedInto    Subcategory? @relation("SubcategoryMerge", fields: [mergedIntoId], references: [id])
+  mergedFrom    Subcategory[] @relation("SubcategoryMerge")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([categoryId, normalized])
+  @@index([categoryId])
+  @@index([normalized])
+  @@index([usageCount])
+  @@index([isActive])
+}
+
+model EnrichmentJob {
+  id          String   @id @default(cuid())
+  categoryId  String?
+  category    EnrichmentCategory? @relation(fields: [categoryId], references: [id])
+
+  status      String   @default("pending")  // pending | running | completed | stopped | error
+  total       Int      @default(0)
+  processed   Int      @default(0)
+  enriched    Int      @default(0)
+  skipped     Int      @default(0)
+  errors      Int      @default(0)
+
+  batchSize   Int      @default(2)
+  aiModel     String   @default("smart")
+  errorMessage String? @db.Text
+
+  startedAt   DateTime?
+  stoppedAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([categoryId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Агрегированная заявка (объединяет связанные сообщения от одного пользователя)
+model Request {
+  id            String   @id @default(cuid())
+
+  // Тип и категория
+  type          String                     // "request" | "offer"
+  category      String?                    // "metal" | "other"
+  nomenclature  String?                    // "балка", "труба", "арматура"
+
+  // Описание
+  material      String?  @db.Text          // Полное описание материала
+  quantity      String?                    // "3 шт по 2.86м, 5 шт по 0.56м"
+  price         Int?                       // Цена
+  priceUnit     String?                    // "за тонну"
+
+  // Для Excel - список позиций
+  items           Json?                    // ExcelItem[] - позиции из Excel файла
+  isMultiPosition Boolean @default(false)  // true если заявка содержит несколько позиций
+
+  // Контакт
+  contactName     String?                  // Имя отправителя
+  contactUsername String?                  // @username
+  contactPhone    String?                  // Телефон
+  senderId        String?                  // ID отправителя в Telegram
+
+  // Локация
+  city          String?
+
+  // Источник
+  sourceId      String
+  source        TelegramSource @relation(fields: [sourceId], references: [id])
+
+  // Связь с сырыми сообщениями
+  rawMessages   RawMessage[]
+
+  // Статус модерации
+  status          String   @default("new")   // "new" | "approved" | "rejected"
+  needsModeration Boolean  @default(false)   // true если AI не уверен (спор, общие термины)
+  aiConfidence    Float?                     // Уверенность AI 0-1
+
+  // Даты
+  firstMessageAt DateTime                  // Дата первого сообщения
+  lastMessageAt  DateTime                  // Дата последнего сообщения
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Связи со справочником (зависят от type)
+  categoryRefId       String?   // ID категории из справочника
+  nomenclatureRefId   String?   // ID номенклатуры из справочника
+  detailRefId         String?   // ID детали из справочника
+
+  @@index([type])
+  @@index([category])
+  @@index([nomenclature])
+  @@index([status])
+  @@index([sourceId])
+  @@index([senderId])
+  @@index([lastMessageAt])
+  @@index([categoryRefId])
+  @@index([nomenclatureRefId])
+}
+
+// ============================================
+// СПРАВОЧНИКИ ДЛЯ КАСКАДНОЙ ФИЛЬТРАЦИИ
+// ============================================
+
+// === СПРАВОЧНИК ДЛЯ ЗАЯВОК (что хотят купить) ===
+model RequestCategory {
+  id          String   @id @default(cuid())
+  code        String   @unique  // "metal", "construction"
+  name        String             // "Металл", "Конструкции"
+  sortOrder   Int      @default(0)
+
+  nomenclatures RequestNomenclature[]
+}
+
+model RequestNomenclature {
+  id          String   @id @default(cuid())
+  code        String   @unique  // "tube", "beam", "lstk"
+  name        String             // "Труба", "Балка", "ЛСТК"
+  categoryId  String
+  category    RequestCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  sortOrder   Int      @default(0)
+
+  details     RequestDetail[]
+}
+
+model RequestDetail {
+  id              String   @id @default(cuid())
+  name            String   // "159х6", "18М"
+  nomenclatureId  String
+  nomenclature    RequestNomenclature @relation(fields: [nomenclatureId], references: [id], onDelete: Cascade)
+  sortOrder       Int      @default(0)
+
+  @@unique([nomenclatureId, name])
+}
+
+// === СПРАВОЧНИК ДЛЯ ПРЕДЛОЖЕНИЙ (что продают) ===
+model OfferCategory {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  sortOrder   Int      @default(0)
+
+  nomenclatures OfferNomenclature[]
+}
+
+model OfferNomenclature {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  categoryId  String
+  category    OfferCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  sortOrder   Int      @default(0)
+
+  details     OfferDetail[]
+}
+
+model OfferDetail {
+  id              String   @id @default(cuid())
+  name            String
+  nomenclatureId  String
+  nomenclature    OfferNomenclature @relation(fields: [nomenclatureId], references: [id], onDelete: Cascade)
+  sortOrder       Int      @default(0)
+
+  @@unique([nomenclatureId, name])
+}
+
+// ============================================
+// AVITO PARSER MODELS
+// ============================================
+
+// Прокси для парсинга Avito
+model AvitoProxy {
+  id           String    @id @default(cuid())
+  name         String                        // "Proxy 1"
+  url          String                        // "http://user:pass@ip:port"
+  isActive     Boolean   @default(true)
+  status       String    @default("unknown") // "working" | "error" | "unknown"
+  lastCheck    DateTime?
+  errorMsg     String?
+
+  // Статистика
+  requestCount Int       @default(0)
+  errorCount   Int       @default(0)
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// Источник Avito (поисковый запрос)
+model AvitoSource {
+  id          String   @id @default(cuid())
+  name        String                        // "Металлопрокат Москва"
+  searchUrl   String                        // URL поиска Avito с фильтрами
+
+  // Какие поля парсить
+  parseFields String[] @default(["title", "description", "price", "city", "images", "sellerName", "url"])
+
+  isActive    Boolean  @default(true)
+
+  // Привязка к прокси (null = использовать любой из пула)
+  proxyId     String?
+
+  // Автопарсинг
+  autoParseEnabled  Boolean @default(false)
+  autoParseInterval Int     @default(24)    // часов
+
+  lastParsed  DateTime?
+  adCount     Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ads         AvitoAd[]
+  jobs        AvitoJob[]
+
+  @@index([isActive])
+}
+
+// Задача парсинга Avito
+model AvitoJob {
+  id        String   @id @default(cuid())
+  sourceId  String
+  source    AvitoSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  proxyId   String?                         // Какой прокси использовался
+
+  status    String   @default("pending")    // "pending" | "running" | "completed" | "stopped" | "error"
+
+  // Прогресс
+  total     Int      @default(0)
+  processed Int      @default(0)
+  newAds    Int      @default(0)
+  skipped   Int      @default(0)
+  errors    Int      @default(0)
+
+  errorMsg  String?  @db.Text
+
+  startedAt   DateTime?
+  stoppedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([status])
+  @@index([sourceId])
+  @@index([createdAt])
+}
+
+// Объявление Avito
+model AvitoAd {
+  id          String   @id @default(cuid())
+  avitoId     String   @unique              // ID объявления на Avito
+
+  // Данные объявления
+  title       String
+  description String?  @db.Text
+  price       Int?
+  priceText   String?                       // "65 000 ₽" или "Договорная"
+  city        String?
+  address     String?
+  district    String?
+  sellerName  String?
+  sellerId    String?
+  url         String
+  images      String[]                      // URL фото
+  category    String?
+  views       Int?                          // Просмотры
+
+  publishedAt DateTime?
+  parsedAt    DateTime @default(now())
+
+  // Связь с источником
+  sourceId    String
+  source      AvitoSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sourceId])
+  @@index([city])
+  @@index([price])
+  @@index([parsedAt])
+  @@index([createdAt])
+}
+
+// Глобальные настройки автопарсинга Avito
+model AvitoAutoParseSettings {
+  id                String   @id @default("default")
+  isPaused          Boolean  @default(false)
+  lastAutoParseAt   DateTime?
+  updatedAt         DateTime @updatedAt
+}
+
+// ============================================
+// CRM: МАТЧИНГ ЗАЯВОК И ПРЕДЛОЖЕНИЙ
+// ============================================
+
+model Match {
+  id          String   @id @default(cuid())
+
+  // Связь с карточками (REQUEST и OFFER)
+  requestId   String                        // ID карточки REQUEST
+  offerId     String                        // ID карточки OFFER
+
+  // AI оценка
+  score       Int                           // Шанс сделки 0-100%
+  reason      String?  @db.Text             // Почему матч хороший/плохой
+
+  // Маржинальность
+  marginPercent   Float?                    // Маржа в процентах
+  marginAbsolute  Int?                      // Маржа в рублях
+  marginNote      String?                   // Комментарий по марже
+
+  // Риски (JSON array)
+  risks       String[] @default([])         // ["большой объём", "нужна доставка"]
+
+  // Статус обработки
+  status      String   @default("new")      // new | contacted | deal | rejected
+  statusNote  String?                       // Комментарий менеджера
+
+  // Даты
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  contactedAt DateTime?                     // Когда связались
+  dealAt      DateTime?                     // Когда сделка закрыта
+
+  // Связи с RawMessage
+  request     RawMessage @relation("MatchRequest", fields: [requestId], references: [id], onDelete: Cascade)
+  offer       RawMessage @relation("MatchOffer", fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, offerId])            // Один матч на пару
+  @@index([status])
+  @@index([score])
+  @@index([createdAt])
+}
+
+// История всех AI оценок пар (для предотвращения повторных вызовов AI)
+model MatchEvaluation {
+  id          String   @id @default(cuid())
+
+  // Пара карточек
+  requestId   String
+  offerId     String
+
+  // Результат оценки
+  score       Int                           // Score от AI (0-100)
+  wasAccepted Boolean                       // Был ли создан Match (score >= 40)
+
+  // Даты
+  createdAt   DateTime @default(now())
+
+  @@unique([requestId, offerId])            // Одна оценка на пару
+  @@index([requestId])
+  @@index([offerId])
+  @@index([createdAt])
+}

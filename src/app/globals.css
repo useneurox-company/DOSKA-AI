@@ -1,0 +1,249 @@
+@import "tailwindcss";
+
+/* Clean White Theme (default) */
+:root,
+[data-theme="light"] {
+  --background: #FFFFFF;
+  --foreground: #1F2937;
+  --card-bg: #FFFFFF;
+  --card-border: #D1D5DB;
+  --text-primary: #1F2937;
+  --text-secondary: #4B5563;
+  --accent: #2563EB;
+  --accent-hover: #1D4ED8;
+  --tag-bg: #EFF6FF;
+  --tag-text: #1E40AF;
+  --input-bg: #F3F4F6;
+  --input-border: #D1D5DB;
+  --shadow-color: rgba(0, 0, 0, 0.12);
+  --header-bg: #FFFFFF;
+  --header-border: #D1D5DB;
+}
+
+/* Dark Theme */
+[data-theme="dark"] {
+  --background: #0F172A;
+  --foreground: #F1F5F9;
+  --card-bg: #1E293B;
+  --card-border: #334155;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --accent: #3B82F6;
+  --accent-hover: #60A5FA;
+  --tag-bg: #1E3A5F;
+  --tag-text: #93C5FD;
+  --input-bg: #1E293B;
+  --input-border: #475569;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --header-bg: #1E293B;
+  --header-border: #334155;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Helper Icon Animations */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+@keyframes dash {
+  0% { stroke-dashoffset: 20; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.animate-\[wiggle_3s_ease-in-out_infinite\] {
+  animation: wiggle 3s ease-in-out infinite;
+}
+
+.animate-\[dash_2s_ease-in-out_infinite\] {
+  animation: dash 2s ease-in-out infinite;
+}
+
+/* ===== Board Character Animations ===== */
+
+/* Дыхание (idle) */
+@keyframes breathe {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.015); }
+}
+.animate-breathe {
+  animation: breathe 3s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+/* Моргание */
+@keyframes blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+.animate-blink {
+  animation: blink 4s ease-in-out infinite;
+}
+
+/* Появление (bounce in) */
+@keyframes bounce-in {
+  0% { transform: translateY(100px) scale(0); opacity: 0; }
+  50% { transform: translateY(-15px) scale(1.1); opacity: 1; }
+  70% { transform: translateY(8px) scale(0.95); }
+  100% { transform: translateY(0) scale(1); }
+}
+.animate-bounce-in {
+  animation: bounce-in 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Исчезновение */
+@keyframes bounce-out {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  30% { transform: translateY(-10px) scale(1.05); }
+  100% { transform: translateY(100px) scale(0); opacity: 0; }
+}
+.animate-bounce-out {
+  animation: bounce-out 0.6s ease-in forwards;
+}
+
+/* Машет рукой */
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-30deg); }
+  40% { transform: rotate(25deg); }
+  60% { transform: rotate(-25deg); }
+  80% { transform: rotate(20deg); }
+}
+.animate-wave {
+  animation: wave 1.5s ease-in-out;
+  /* transform-origin задаётся в компоненте через origin-[100px_65px] */
+}
+
+/* Прыжок радости */
+@keyframes jump {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  15% { transform: translateY(0) scaleY(0.9); } /* сжимается перед прыжком */
+  30% { transform: translateY(-15px) scaleY(1.05); }
+  50% { transform: translateY(-20px) scaleY(1.02); }
+  70% { transform: translateY(-10px) scaleY(1); }
+}
+.animate-jump {
+  animation: jump 0.6s ease-out;
+  transform-origin: bottom center;
+}
+
+/* Танец */
+@keyframes dance {
+  0%, 100% { transform: rotate(-8deg) translateX(-5px); }
+  50% { transform: rotate(8deg) translateX(5px); }
+}
+.animate-dance {
+  animation: dance 0.4s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+/* Ноги при прыжке */
+@keyframes legs-jump {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.animate-legs-jump {
+  animation: legs-jump 0.8s ease-out;
+}
+
+/* Ноги при танце */
+@keyframes legs-dance {
+  0%, 100% { transform: skewX(-3deg); }
+  50% { transform: skewX(3deg); }
+}
+.animate-legs-dance {
+  animation: legs-dance 0.5s ease-in-out infinite;
+}
+
+/* Глаза бегают (typing) */
+@keyframes eyes-typing {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(3px); }
+  75% { transform: translateX(-3px); }
+}
+.animate-eyes-typing {
+  animation: eyes-typing 0.4s ease-in-out infinite;
+}
+
+/* Рука у подбородка (think) - левая рука поднимается к "лицу" */
+@keyframes think-arm {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-45deg) translateX(15px) translateY(-10px); }
+}
+.animate-think-arm {
+  animation: think-arm 0.4s ease-out forwards;
+}
+
+/* Тело при думании */
+@keyframes think-body {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+.animate-think-body {
+  animation: think-body 2s ease-in-out infinite;
+}
+
+/* Точки думания */
+@keyframes think-dot {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+.animate-think-dot {
+  animation: think-dot 1.5s ease-in-out infinite;
+}
+.animate-think-dot-delay-1 {
+  animation: think-dot 1.5s ease-in-out infinite 0.3s;
+}
+.animate-think-dot-delay-2 {
+  animation: think-dot 1.5s ease-in-out infinite 0.6s;
+}
+
+/* ZZZ для сна */
+@keyframes zzz {
+  0% { opacity: 0; transform: translateY(0) scale(0.5); }
+  50% { opacity: 1; transform: translateY(-8px) scale(1); }
+  100% { opacity: 0; transform: translateY(-16px) scale(0.7); }
+}
+.animate-zzz {
+  animation: zzz 2s ease-in-out infinite;
+}
+.animate-zzz-delay-1 {
+  animation: zzz 2s ease-in-out infinite 0.5s;
+}
+.animate-zzz-delay-2 {
+  animation: zzz 2s ease-in-out infinite 1s;
+}
+
+/* Сердечки */
+@keyframes hearts {
+  0% { opacity: 0; transform: translateY(0) scale(0); }
+  50% { opacity: 1; transform: translateY(-10px) scale(1); }
+  100% { opacity: 0; transform: translateY(-20px) scale(0.5); }
+}
+.animate-hearts {
+  animation: hearts 1s ease-out;
+}
+.animate-heart-delay {
+  animation: hearts 1s ease-out 0.3s;
+}
+
+/* Праздничные руки (машут при радости) */
+@keyframes celebrate {
+  0%, 100% { transform: rotate(-15deg) translateY(0); }
+  50% { transform: rotate(15deg) translateY(-5px); }
+}
+.animate-celebrate {
+  animation: celebrate 0.25s ease-in-out infinite;
+}

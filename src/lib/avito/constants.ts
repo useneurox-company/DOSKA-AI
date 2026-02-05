@@ -24,30 +24,40 @@ export const AVITO_CONFIG = {
   PAGE_LOAD_TIMEOUT: 30000,                           // Таймаут загрузки страницы
   ELEMENT_WAIT_TIMEOUT: 10000,                        // Ожидание элемента
 
-  // User-Agents для ротации (реальные браузеры)
+  // User-Agents для ротации (реальные браузеры 2025)
   USER_AGENTS: [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
   ],
 
   // Селекторы Avito (могут меняться, обновлять при необходимости)
   SELECTORS: {
-    // Страница поиска
+    // Страница поиска - контейнер
     AD_ITEM: '[data-marker="item"]',
     AD_LINK: 'a[itemprop="url"]',
     AD_TITLE: '[itemprop="name"]',
     AD_PRICE: '[itemprop="price"]',
     AD_LOCATION: '[data-marker="item-address"]',
 
-    // Страница объявления
+    // Страница поиска - быстрый парсинг (данные из карточки)
+    SEARCH_TITLE: '[data-marker="item-title"]',
+    SEARCH_PRICE_META: '[data-marker="item-price"] meta[itemprop="price"]',
+    SEARCH_PRICE_VALUE: '[data-marker="item-price-value"]',
+    SEARCH_CITY: '.geo-root-BBVai span',
+    SEARCH_IMAGE: 'img[itemprop="image"]',
+    SEARCH_DESCRIPTION: '.iva-item-bottomBlock-VewGa p',
+    SEARCH_SELLER_NAME: '.style-root-nFIJp p',
+    SEARCH_SELLER_RATING: '[data-marker="seller-info/score"]',
+
+    // Страница объявления (детальный режим)
     DETAIL_TITLE: '[data-marker="item-view/title-info"]',
     DETAIL_PRICE: '[data-marker="item-view/item-price"]',
     DETAIL_DESCRIPTION: '[data-marker="item-view/item-description"]',

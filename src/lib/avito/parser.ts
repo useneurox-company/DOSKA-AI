@@ -53,6 +53,7 @@ export class AvitoParser {
       '--disable-dev-shm-usage',
       '--disable-accelerated-2d-canvas',
       '--disable-gpu',
+      '--disable-blink-features=AutomationControlled', // Скрыть автоматизацию
       `--window-size=${AVITO_CONFIG.VIEWPORT.width},${AVITO_CONFIG.VIEWPORT.height}`,
     ]
 
@@ -71,6 +72,11 @@ export class AvitoParser {
     })
 
     this.page = await this.browser.newPage()
+
+    // Скрыть признаки автоматизации
+    await this.page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false })
+    })
 
     // Установить User-Agent
     await this.page.setUserAgent(getRandomUserAgent())
@@ -147,7 +153,7 @@ export class AvitoParser {
 
     console.log(`[Avito] Открываю страницу поиска: ${url.toString()}`)
 
-    await this.page.goto(url.toString(), { waitUntil: 'networkidle2' })
+    await this.page.goto(url.toString(), { waitUntil: 'domcontentloaded' })
 
     // Подождать загрузки объявлений
     try {
@@ -179,6 +185,156 @@ export class AvitoParser {
     return links
   }
 
+  // БЫСТРЫЙ РЕЖИМ: Парсить данные прямо со страницы поиска
+  async parseSearchPageFast(searchUrl: string, pageNum: number = 1): Promise<ParsedAd[]> {
+    if (!this.page) throw new Error('Browser not launched')
+
+    // Добавить номер страницы к URL
+    const url = new URL(searchUrl)
+    if (pageNum > 1) {
+      url.searchParams.set('p', String(pageNum))
+    }
+
+    console.log(`[Avito] [FAST] Открываю страницу поиска: ${url.toString()}`)
+
+    await this.page.goto(url.toString(), { waitUntil: 'domcontentloaded' })
+
+    // Подождать загрузки объявлений
+    try {
+      await this.page.waitForSelector(AVITO_CONFIG.SELECTORS.AD_ITEM, {
+        timeout: AVITO_CONFIG.ELEMENT_WAIT_TIMEOUT,
+      })
+    } catch {
+      console.log('[Avito] [FAST] Объявления не найдены на странице')
+      return []
+    }
+
+    // Прокрутить страницу для загрузки ленивых изображений
+    await this.page.evaluate(async () => {
+      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+      const scrollStep = 500
+      const scrollDelay = 150
+
+      // Прокрутить вниз постепенно
+      for (let y = 0; y < document.body.scrollHeight; y += scrollStep) {
+        window.scrollTo(0, y)
+        await delay(scrollDelay)
+      }
+
+      // Вернуться наверх
+      window.scrollTo(0, 0)
+      await delay(300)
+    })
+
+    // Подождать загрузки изображений
+    await randomDelay(500, 1000)
+
+    // Парсить данные прямо со страницы
+    const ads = await this.page.evaluate((selectors) => {
+      const items = document.querySelectorAll(selectors.AD_ITEM)
+      const results: Array<{
+        avitoId: string | null
+        title: string
+        url: string
+        price: number | undefined
+        priceText: string | undefined
+        city: string | undefined
+        description: string | undefined
+        sellerName: string | undefined
+        images: string[]
+      }> = []
+
+      items.forEach((item) => {
+        // Ссылка и ID
+        const link = item.querySelector(selectors.AD_LINK) as HTMLAnchorElement
+        if (!link || !link.href) return
+
+        const url = link.href
+        // Извлечь ID из URL: ...truba_12345678?...
+        const idMatch = url.match(/_(\d+)(?:\?|#|$)/)
+        const avitoId = idMatch ? idMatch[1] : null
+
+        // Заголовок
+        const titleEl = item.querySelector(selectors.SEARCH_TITLE) || item.querySelector('[itemprop="name"]')
+        const title = titleEl?.textContent?.trim() || 'Без названия'
+
+        // Цена
+        const priceMeta = item.querySelector(selectors.SEARCH_PRICE_META) as HTMLMetaElement
+        const priceValueEl = item.querySelector(selectors.SEARCH_PRICE_VALUE)
+        let price: number | undefined
+        let priceText: string | undefined
+
+        if (priceMeta?.content) {
+          price = parseInt(priceMeta.content, 10)
+        }
+        if (priceValueEl) {
+          priceText = priceValueEl.textContent?.trim()
+          if (!price && priceText) {
+            const priceMatch = priceText.replace(/\s/g, '').match(/(\d+)/)
+            if (priceMatch) price = parseInt(priceMatch[1], 10)
+          }
+        }
+
+        // Город
+        const cityEl = item.querySelector(selectors.SEARCH_CITY)
+        const city = cityEl?.textContent?.trim()
+
+        // Описание (краткое, из карточки)
+        const descEl = item.querySelector(selectors.SEARCH_DESCRIPTION)
+        const description = descEl?.textContent?.trim()
+
+        // Продавец
+        const sellerEl = item.querySelector(selectors.SEARCH_SELLER_NAME)
+        const sellerName = sellerEl?.textContent?.trim()
+
+        // Изображения
+        const imageEls = item.querySelectorAll(selectors.SEARCH_IMAGE)
+        const images: string[] = []
+        imageEls.forEach((img) => {
+          const src = (img as HTMLImageElement).src
+          if (src && !src.includes('data:')) {
+            // Преобразовать в полноразмерное
+            const fullSrc = src.replace(/\/\d+x\d+\//, '/1440x1080/')
+            if (!images.includes(fullSrc)) {
+              images.push(fullSrc)
+            }
+          }
+        })
+
+        results.push({
+          avitoId,
+          title,
+          url,
+          price,
+          priceText,
+          city,
+          description,
+          sellerName,
+          images,
+        })
+      })
+
+      return results
+    }, AVITO_CONFIG.SELECTORS)
+
+    console.log(`[Avito] [FAST] Спарсено ${ads.length} объявлений на странице ${pageNum}`)
+
+    // Преобразовать в ParsedAd
+    return ads
+      .filter(ad => ad.avitoId !== null)
+      .map(ad => ({
+        avitoId: ad.avitoId!,
+        title: ad.title,
+        url: ad.url,
+        price: ad.price,
+        priceText: ad.priceText,
+        city: ad.city,
+        description: ad.description,
+        sellerName: ad.sellerName,
+        images: ad.images,
+      }))
+  }
+
   // Проверить есть ли следующая страница
   async hasNextPage(): Promise<boolean> {
     if (!this.page) return false
@@ -204,7 +360,7 @@ export class AvitoParser {
     console.log(`[Avito] Парсинг объявления: ${avitoId}`)
 
     try {
-      await this.page.goto(adUrl, { waitUntil: 'networkidle2' })
+      await this.page.goto(adUrl, { waitUntil: 'domcontentloaded' })
 
       // Подождать загрузки заголовка
       await this.page.waitForSelector(AVITO_CONFIG.SELECTORS.DETAIL_TITLE, {
@@ -452,7 +608,11 @@ export class AvitoParser {
 
   // Основной метод парсинга источника
   async parseSource(source: AvitoSource): Promise<void> {
-    console.log(`[Avito] Начинаю парсинг источника: ${source.name}`)
+    // Определить режим парсинга
+    const fastMode = source.fastMode ?? true // По умолчанию быстрый режим
+    const modeLabel = fastMode ? '[FAST]' : '[DETAIL]'
+
+    console.log(`[Avito] ${modeLabel} Начинаю парсинг источника: ${source.name}`)
 
     try {
       await this.launchBrowser()
@@ -464,88 +624,149 @@ export class AvitoParser {
       let skippedAds = 0
       let errorCount = 0
 
-      // Собрать все ссылки со всех страниц
-      const allAdLinks: string[] = []
-      let currentPage = 1
+      if (fastMode) {
+        // === БЫСТРЫЙ РЕЖИМ: парсим данные прямо со страницы поиска ===
+        let currentPage = 1
 
-      while (currentPage <= AVITO_CONFIG.MAX_PAGES_PER_SOURCE) {
-        // Проверить сигнал остановки
-        if (JobManager.shouldStop(this.jobId)) {
-          console.log(`[Avito] Получен сигнал остановки для задачи ${this.jobId}`)
-          break
+        while (currentPage <= AVITO_CONFIG.MAX_PAGES_PER_SOURCE) {
+          // Проверить сигнал остановки
+          if (JobManager.shouldStop(this.jobId)) {
+            console.log(`[Avito] Получен сигнал остановки для задачи ${this.jobId}`)
+            break
+          }
+
+          const ads = await this.parseSearchPageFast(source.searchUrl, currentPage)
+
+          if (ads.length === 0) {
+            break
+          }
+
+          totalAds += ads.length
+          await JobManager.updateProgress(this.jobId, { total: totalAds })
+
+          // Сохранить объявления
+          for (const ad of ads) {
+            if (JobManager.shouldStop(this.jobId)) break
+
+            try {
+              const { isNew } = await this.saveAd(ad)
+              if (isNew) {
+                newAds++
+              } else {
+                skippedAds++
+              }
+            } catch (error) {
+              console.error(`[Avito] [FAST] Ошибка сохранения ${ad.avitoId}:`, error)
+              errorCount++
+            }
+
+            processedAds++
+          }
+
+          // Обновить прогресс
+          await JobManager.updateProgress(this.jobId, {
+            processed: processedAds,
+            newAds,
+            skipped: skippedAds,
+            errors: errorCount,
+          })
+
+          // Проверить есть ли следующая страница
+          const hasNext = await this.hasNextPage()
+          if (!hasNext) {
+            break
+          }
+
+          currentPage++
+
+          // Задержка между страницами (меньше чем в детальном режиме)
+          await randomDelay(
+            AVITO_CONFIG.DELAY_BETWEEN_PAGES.min,
+            AVITO_CONFIG.DELAY_BETWEEN_PAGES.max
+          )
         }
 
-        const links = await this.parseSearchPage(source.searchUrl, currentPage)
+        console.log(`[Avito] [FAST] Всего обработано ${totalAds} объявлений`)
 
-        if (links.length === 0) {
-          break
+      } else {
+        // === ДЕТАЛЬНЫЙ РЕЖИМ: открываем каждое объявление ===
+        const allAdLinks: string[] = []
+        let currentPage = 1
+
+        while (currentPage <= AVITO_CONFIG.MAX_PAGES_PER_SOURCE) {
+          if (JobManager.shouldStop(this.jobId)) {
+            console.log(`[Avito] Получен сигнал остановки для задачи ${this.jobId}`)
+            break
+          }
+
+          const links = await this.parseSearchPage(source.searchUrl, currentPage)
+
+          if (links.length === 0) {
+            break
+          }
+
+          allAdLinks.push(...links)
+
+          const hasNext = await this.hasNextPage()
+          if (!hasNext) {
+            break
+          }
+
+          currentPage++
+
+          await randomDelay(
+            AVITO_CONFIG.DELAY_BETWEEN_PAGES.min,
+            AVITO_CONFIG.DELAY_BETWEEN_PAGES.max
+          )
         }
 
-        allAdLinks.push(...links)
+        totalAds = allAdLinks.length
+        await JobManager.updateProgress(this.jobId, { total: totalAds })
 
-        // Проверить есть ли следующая страница
-        const hasNext = await this.hasNextPage()
-        if (!hasNext) {
-          break
-        }
+        console.log(`[Avito] [DETAIL] Всего найдено ${totalAds} объявлений`)
 
-        currentPage++
+        // Парсить каждое объявление
+        for (const adUrl of allAdLinks) {
+          if (JobManager.shouldStop(this.jobId)) {
+            console.log(`[Avito] Получен сигнал остановки для задачи ${this.jobId}`)
+            break
+          }
 
-        // Задержка между страницами поиска
-        await randomDelay(
-          AVITO_CONFIG.DELAY_BETWEEN_PAGES.min,
-          AVITO_CONFIG.DELAY_BETWEEN_PAGES.max
-        )
-      }
+          try {
+            const ad = await this.parseAdPage(adUrl)
 
-      totalAds = allAdLinks.length
-      await JobManager.updateProgress(this.jobId, { total: totalAds })
+            if (ad) {
+              const { isNew } = await this.saveAd(ad)
 
-      console.log(`[Avito] Всего найдено ${totalAds} объявлений`)
-
-      // Парсить каждое объявление
-      for (const adUrl of allAdLinks) {
-        // Проверить сигнал остановки
-        if (JobManager.shouldStop(this.jobId)) {
-          console.log(`[Avito] Получен сигнал остановки для задачи ${this.jobId}`)
-          break
-        }
-
-        try {
-          const ad = await this.parseAdPage(adUrl)
-
-          if (ad) {
-            const { isNew } = await this.saveAd(ad)
-
-            if (isNew) {
-              newAds++
+              if (isNew) {
+                newAds++
+              } else {
+                skippedAds++
+              }
             } else {
               skippedAds++
             }
-          } else {
-            skippedAds++
+          } catch (error) {
+            console.error(`[Avito] Ошибка парсинга ${adUrl}:`, error)
+            errorCount++
           }
-        } catch (error) {
-          console.error(`[Avito] Ошибка парсинга ${adUrl}:`, error)
-          errorCount++
-        }
 
-        processedAds++
+          processedAds++
 
-        // Обновить прогресс
-        await JobManager.updateProgress(this.jobId, {
-          processed: processedAds,
-          newAds,
-          skipped: skippedAds,
-          errors: errorCount,
-        })
+          await JobManager.updateProgress(this.jobId, {
+            processed: processedAds,
+            newAds,
+            skipped: skippedAds,
+            errors: errorCount,
+          })
 
-        // Задержка между объявлениями
-        if (processedAds < totalAds) {
-          await randomDelay(
-            AVITO_CONFIG.DELAY_BETWEEN_ADS.min,
-            AVITO_CONFIG.DELAY_BETWEEN_ADS.max
-          )
+          // Задержка между объявлениями
+          if (processedAds < totalAds) {
+            await randomDelay(
+              AVITO_CONFIG.DELAY_BETWEEN_ADS.min,
+              AVITO_CONFIG.DELAY_BETWEEN_ADS.max
+            )
+          }
         }
       }
 
@@ -554,7 +775,7 @@ export class AvitoParser {
         console.log(`[Avito] Задача ${this.jobId} остановлена`)
       } else {
         await JobManager.completeJob(this.jobId)
-        console.log(`[Avito] Задача ${this.jobId} завершена успешно`)
+        console.log(`[Avito] ${modeLabel} Задача ${this.jobId} завершена успешно`)
       }
 
       // Обновить статистику источника

@@ -13,6 +13,10 @@ interface Stats {
     ads: number;
     sources: number;
   };
+  forum: {
+    posts: number;
+    sources: number;
+  };
   crm: {
     matches: number;
     deals: number;
@@ -27,8 +31,9 @@ export default function AdminPage() {
     Promise.all([
       fetch("/api/drafts?stats=true").then(r => r.json()).catch(() => ({})),
       fetch("/api/avito/ads?stats=true").then(r => r.json()).catch(() => ({})),
+      fetch("/api/forum/stats").then(r => r.json()).catch(() => ({})),
       fetch("/api/admin/crm/matches").then(r => r.json()).catch(() => ({})),
-    ]).then(([telegramData, avitoData, crmData]) => {
+    ]).then(([telegramData, avitoData, forumData, crmData]) => {
       setStats({
         telegram: {
           messages: telegramData.total || 0,
@@ -38,6 +43,10 @@ export default function AdminPage() {
         avito: {
           ads: avitoData.total || 0,
           sources: avitoData.sources || 0,
+        },
+        forum: {
+          posts: forumData.totalPosts || 0,
+          sources: forumData.totalSources || 0,
         },
         crm: {
           matches: crmData.total || 0,
@@ -126,6 +135,42 @@ export default function AdminPage() {
               )}
 
               <div className="mt-4 text-green-600 text-sm font-medium">
+                Перейти →
+              </div>
+            </div>
+          </Link>
+
+          {/* Forum */}
+          <Link href="/admin/forum/parser" className="block">
+            <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow border-2 border-transparent hover:border-orange-500">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-14 h-14 bg-orange-100 rounded-xl flex items-center justify-center text-3xl">
+                  💬
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Форумы</h2>
+                  <p className="text-gray-500 text-sm">Парсинг форумов</p>
+                </div>
+              </div>
+
+              {stats && (
+                <div className="grid grid-cols-2 gap-3 pt-4 border-t">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-900">
+                      {stats.forum.posts.toLocaleString("ru-RU")}
+                    </div>
+                    <div className="text-xs text-gray-500">Постов</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {stats.forum.sources.toLocaleString("ru-RU")}
+                    </div>
+                    <div className="text-xs text-gray-500">Источников</div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 text-orange-600 text-sm font-medium">
                 Перейти →
               </div>
             </div>

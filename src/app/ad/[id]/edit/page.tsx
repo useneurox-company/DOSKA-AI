@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, use } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -18,17 +18,35 @@ interface Category {
 }
 
 interface ImageFile {
-  file: File
+  file?: File
   preview: string
+  url?: string
+  isExisting?: boolean
 }
 
-export default function CreateAdPage() {
+interface Ad {
+  id: string
+  title: string
+  description: string | null
+  price: number
+  cityId: string
+  categoryId: string
+  userId: string | null
+  city: { id: string; name: string }
+  category: { id: string; name: string }
+  images: { id: string; url: string }[]
+}
+
+export default function EditAdPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { data: session, status } = useSession()
   const router = useRouter()
   const [cities, setCities] = useState<City[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingAd, setLoadingAd] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -41,6 +59,53 @@ export default function CreateAdPage() {
   const [dragOver, setDragOver] = useState(false)
   const [uploadingImages, setUploadingImages] = useState(false)
 
+  // Загрузка данных объявления
+  useEffect(() => {
+    const fetchAd = async () => {
+      try {
+        const res = await fetch(`/api/ads/${id}`)
+        if (!res.ok) {
+          if (res.status === 404) {
+            setError('Объявление не найдено')
+          } else {
+            setError('Ошибка загрузки объявления')
+          }
+          return
+        }
+
+        const ad: Ad = await res.json()
+
+        // Проверяем права на редактирование
+        if (session?.user?.id && ad.userId !== session.user.id) {
+          setError('У вас нет прав на редактирование этого объявления')
+          return
+        }
+
+        setTitle(ad.title)
+        setDescription(ad.description || '')
+        setPrice(ad.price.toString())
+        setCityId(ad.cityId)
+        setCategoryId(ad.categoryId)
+
+        // Загружаем существующие изображения
+        setImages(ad.images.map(img => ({
+          preview: img.url,
+          url: img.url,
+          isExisting: true
+        })))
+      } catch {
+        setError('Ошибка при загрузке объявления')
+      } finally {
+        setLoadingAd(false)
+      }
+    }
+
+    if (session?.user) {
+      fetchAd()
+    }
+  }, [id, session?.user])
+
+  // Загрузка городов и категорий
   useEffect(() => {
     fetch('/api/cities')
       .then((res) => res.json())
@@ -49,16 +114,18 @@ export default function CreateAdPage() {
 
     fetch('/api/categories')
       .then((res) => res.json())
-      .then((data) => {
-        setCategories(data)
-      })
+      .then((data) => setCategories(data))
       .catch(console.error)
   }, [])
 
   // Очистка превью при размонтировании
   useEffect(() => {
     return () => {
-      images.forEach(img => URL.revokeObjectURL(img.preview))
+      images.forEach(img => {
+        if (!img.isExisting && img.preview) {
+          URL.revokeObjectURL(img.preview)
+        }
+      })
     }
   }, [images])
 
@@ -70,7 +137,8 @@ export default function CreateAdPage() {
       .slice(0, 5 - images.length)
       .map(file => ({
         file,
-        preview: URL.createObjectURL(file)
+        preview: URL.createObjectURL(file),
+        isExisting: false
       }))
 
     setImages(prev => [...prev, ...newImages].slice(0, 5))
@@ -84,12 +152,15 @@ export default function CreateAdPage() {
 
   const removeImage = (index: number) => {
     setImages(prev => {
-      URL.revokeObjectURL(prev[index].preview)
+      const img = prev[index]
+      if (!img.isExisting && img.preview) {
+        URL.revokeObjectURL(img.preview)
+      }
       return prev.filter((_, i) => i !== index)
     })
   }
 
-  if (status === 'loading') {
+  if (status === 'loading' || loadingAd) {
     return (
       <>
         <Header />
@@ -118,7 +189,7 @@ export default function CreateAdPage() {
               Требуется авторизация
             </h1>
             <p className="text-gray-500 mb-6">
-              Для размещения объявления необходимо войти в аккаунт
+              Для редактирования объявления необходимо войти в аккаунт
             </p>
             <Link
               href="/auth/login"
@@ -132,19 +203,47 @@ export default function CreateAdPage() {
     )
   }
 
+  if (error && !title) {
+    return (
+      <>
+        <Header />
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+          <div className="text-center bg-white rounded-2xl shadow-xl p-8 max-w-md mx-4">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">{error}</h1>
+            <Link
+              href="/profile"
+              className="inline-block mt-4 px-6 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+            >
+              Вернуться в профиль
+            </Link>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setSuccess('')
     setLoading(true)
 
     try {
-      // Сначала загружаем изображения
-      let imageUrls: string[] = []
+      // Загружаем новые изображения
+      const newImages = images.filter(img => !img.isExisting && img.file)
+      let newImageUrls: string[] = []
 
-      if (images.length > 0) {
+      if (newImages.length > 0) {
         setUploadingImages(true)
         const formData = new FormData()
-        images.forEach(img => formData.append('images', img.file))
+        newImages.forEach(img => {
+          if (img.file) formData.append('images', img.file)
+        })
 
         const uploadRes = await fetch('/api/upload', {
           method: 'POST',
@@ -157,13 +256,17 @@ export default function CreateAdPage() {
         }
 
         const uploadData = await uploadRes.json()
-        imageUrls = uploadData.urls
+        newImageUrls = uploadData.urls
         setUploadingImages(false)
       }
 
-      // Создаём объявление
-      const res = await fetch('/api/ads', {
-        method: 'POST',
+      // Собираем все URL изображений (существующие + новые)
+      const existingUrls = images.filter(img => img.isExisting).map(img => img.url!)
+      const allImageUrls = [...existingUrls, ...newImageUrls]
+
+      // Обновляем объявление
+      const res = await fetch(`/api/ads/${id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
@@ -171,18 +274,21 @@ export default function CreateAdPage() {
           price: parseInt(price),
           cityId,
           categoryId,
-          images: imageUrls,
+          images: allImageUrls,
         }),
       })
 
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || 'Ошибка при создании объявления')
+        setError(data.error || 'Ошибка при обновлении объявления')
         return
       }
 
-      router.push(`/ad/${data.id}`)
+      setSuccess('Объявление успешно обновлено!')
+      setTimeout(() => {
+        router.push(`/ad/${id}`)
+      }, 1500)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка')
     } finally {
@@ -202,14 +308,18 @@ export default function CreateAdPage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-            <span className="text-gray-900">Новое объявление</span>
+            <Link href="/profile" className="hover:text-blue-600 transition-colors">Профиль</Link>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            <span className="text-gray-900">Редактирование</span>
           </nav>
 
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
             {/* Заголовок */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6">
-              <h1 className="text-2xl font-bold text-white">Новое объявление</h1>
-              <p className="text-blue-100 mt-1">Заполните информацию о вашем товаре</p>
+              <h1 className="text-2xl font-bold text-white">Редактирование объявления</h1>
+              <p className="text-blue-100 mt-1">Измените информацию о вашем товаре</p>
             </div>
 
             <form onSubmit={handleSubmit} className="p-8 space-y-8">
@@ -219,6 +329,15 @@ export default function CreateAdPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <span>{error}</span>
+                </div>
+              )}
+
+              {success && (
+                <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-xl flex items-center gap-3">
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>{success}</span>
                 </div>
               )}
 
@@ -393,46 +512,35 @@ export default function CreateAdPage() {
                 </select>
               </div>
 
-              {/* Кнопка */}
-              <div className="pt-4">
+              {/* Кнопки */}
+              <div className="pt-4 flex gap-4">
+                <Link
+                  href="/profile"
+                  className="flex-1 px-6 py-4 border-2 border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all text-center"
+                >
+                  Отмена
+                </Link>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transform hover:scale-[1.02] transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-3"
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transform hover:scale-[1.02] transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-3"
                 >
                   {loading ? (
                     <>
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>{uploadingImages ? 'Загрузка фото...' : 'Публикация...'}</span>
+                      <span>{uploadingImages ? 'Загрузка фото...' : 'Сохранение...'}</span>
                     </>
                   ) : (
                     <>
-                      <span>Опубликовать объявление</span>
+                      <span>Сохранить изменения</span>
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                     </>
                   )}
                 </button>
               </div>
             </form>
-          </div>
-
-          {/* Подсказки */}
-          <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <div className="flex gap-3">
-              <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="text-sm text-amber-800">
-                <p className="font-medium mb-1">Советы для быстрой продажи:</p>
-                <ul className="list-disc list-inside space-y-1 text-amber-700">
-                  <li>Добавьте качественные фотографии товара</li>
-                  <li>Укажите точные размеры и характеристики</li>
-                  <li>Опишите состояние и происхождение</li>
-                </ul>
-              </div>
-            </div>
           </div>
         </div>
       </main>

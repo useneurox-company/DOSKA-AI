@@ -12,6 +12,7 @@ model User {
   password        String
   name            String?
   phone           String?
+  avatar          String?                   // URL аватарки
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   ads             Ad[]
@@ -44,6 +45,10 @@ model Ad {
   sourceUrl   String?
   isVerified  Boolean   @default(false)
   type        String?   // "request" | "offer" - Куплю / Продам
+
+  // Статистика
+  views       Int       @default(0)       // Кол-во просмотров
+  responses   Int       @default(0)       // Кол-во откликов
 
   // Контакты
   contactPhone    String?  // Телефон для связи
@@ -456,6 +461,9 @@ model AvitoSource {
 
   isActive    Boolean  @default(true)
 
+  // Режим парсинга: false = детальный (открывает каждое объявление), true = быстрый (парсит со страницы поиска)
+  fastMode    Boolean  @default(true)
+
   // Привязка к прокси (null = использовать любой из пула)
   proxyId     String?
 
@@ -610,5 +618,116 @@ model MatchEvaluation {
   @@unique([requestId, offerId])            // Одна оценка на пару
   @@index([requestId])
   @@index([offerId])
+  @@index([createdAt])
+}
+
+// ============================================
+// FORUM PARSER MODELS
+// ============================================
+
+// Источник форума (раздел форума)
+model ForumSource {
+  id          String   @id @default(cuid())
+  name        String                        // "Металлопрокат - Forum.ru"
+  baseUrl     String                        // https://forum.example.ru
+  sectionUrl  String                        // URL раздела с объявлениями
+
+  // CSS селекторы (настраиваются для каждого форума)
+  selectors   Json     @default("{}")       // { topicList, topicLink, topicTitle, postContent, ... }
+
+  // Какие поля парсить
+  parseFields String[] @default(["title", "content", "author", "date", "url"])
+
+  isActive    Boolean  @default(true)
+
+  // Привязка к прокси (null = без прокси)
+  proxyId     String?
+
+  // Автопарсинг
+  autoParseEnabled  Boolean @default(false)
+  autoParseInterval Int     @default(24)    // часов
+
+  // Настройки парсинга
+  maxPages    Int      @default(5)          // Сколько страниц раздела парсить
+  parseReplies Boolean @default(false)      // Парсить ответы в темах
+
+  lastParsed  DateTime?
+  postCount   Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  posts       ForumPost[]
+  jobs        ForumJob[]
+
+  @@index([isActive])
+}
+
+// Задача парсинга форума
+model ForumJob {
+  id        String   @id @default(cuid())
+  sourceId  String
+  source    ForumSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  proxyId   String?
+
+  status    String   @default("pending")    // "pending" | "running" | "completed" | "stopped" | "error"
+
+  // Прогресс
+  total     Int      @default(0)
+  processed Int      @default(0)
+  newPosts  Int      @default(0)
+  skipped   Int      @default(0)
+  errors    Int      @default(0)
+
+  errorMsg  String?  @db.Text
+
+  startedAt   DateTime?
+  stoppedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([status])
+  @@index([sourceId])
+  @@index([createdAt])
+}
+
+// Пост/тема с форума
+model ForumPost {
+  id          String   @id @default(cuid())
+  forumPostId String                        // ID темы/поста на форуме (из URL)
+
+  // Данные поста
+  title       String
+  content     String?  @db.Text             // Текст поста
+  author      String?                       // Имя автора
+  authorId    String?                       // ID автора на форуме
+  authorUrl   String?                       // Ссылка на профиль автора
+  url         String                        // Ссылка на тему/пост
+  images      String[]                      // URL изображений
+
+  // Извлечённые данные (AI или регулярками)
+  price       Int?
+  priceText   String?
+  city        String?
+  phone       String?
+  postType    String?                       // "sell" | "buy" | "other"
+
+  // Даты
+  postedAt    DateTime?                     // Дата публикации на форуме
+  parsedAt    DateTime @default(now())
+
+  // Связь с источником
+  sourceId    String
+  source      ForumSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([sourceId, forumPostId])
+  @@index([sourceId])
+  @@index([postType])
+  @@index([city])
+  @@index([parsedAt])
   @@index([createdAt])
 }

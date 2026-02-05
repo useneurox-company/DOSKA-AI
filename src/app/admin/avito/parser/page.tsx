@@ -22,6 +22,9 @@ const FIELD_LABELS: Record<string, string> = {
   url: "Ссылка",
 };
 
+// Поля, доступные в быстром режиме
+const FAST_MODE_FIELDS = ["title", "description", "price", "city", "images", "sellerName", "url"];
+
 // Типы
 interface Proxy {
   id: string;
@@ -41,6 +44,7 @@ interface Source {
   searchUrl: string;
   parseFields: string[];
   isActive: boolean;
+  fastMode: boolean;
   proxyId: string | null;
   autoParseEnabled: boolean;
   autoParseInterval: number;
@@ -119,6 +123,7 @@ function AvitoAdminContent() {
     searchUrl: "",
     parseFields: ["title", "description", "price", "city", "images", "sellerName", "url"],
     proxyId: "",
+    fastMode: true, // По умолчанию быстрый режим
     autoParseEnabled: false,
     autoParseInterval: 24,
   });
@@ -321,6 +326,7 @@ function AvitoAdminContent() {
           searchUrl: "",
           parseFields: ["title", "description", "price", "city", "images", "sellerName", "url"],
           proxyId: "",
+          fastMode: true,
           autoParseEnabled: false,
           autoParseInterval: 24,
         });
@@ -358,6 +364,20 @@ function AvitoAdminContent() {
       fetchSources();
     } catch {
       setError("Ошибка обновления источника");
+    }
+  };
+
+  // Источники: переключить режим парсинга
+  const toggleSourceFastMode = async (id: string, fastMode: boolean) => {
+    try {
+      await fetch(`/api/avito/sources/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fastMode }),
+      });
+      fetchSources();
+    } catch {
+      setError("Ошибка обновления режима парсинга");
     }
   };
 
@@ -690,10 +710,75 @@ function AvitoAdminContent() {
                     />
                   </div>
 
+                  {/* Режим парсинга */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Режим парсинга</label>
+                    <div className="flex gap-4">
+                      <label
+                        className={`flex-1 cursor-pointer border-2 rounded-lg p-4 transition-all ${
+                          newSource.fastMode
+                            ? "border-green-500 bg-green-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          checked={newSource.fastMode}
+                          onChange={() => setNewSource({
+                            ...newSource,
+                            fastMode: true,
+                            // Убираем недоступные поля при переключении на быстрый режим
+                            parseFields: newSource.parseFields.filter(f => FAST_MODE_FIELDS.includes(f))
+                          })}
+                          className="sr-only"
+                        />
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg">⚡</span>
+                          <span className="font-medium text-gray-900">Быстрый</span>
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Рекомендуется</span>
+                        </div>
+                        <p className="text-sm text-gray-500">
+                          ~1 минута на 500 объявлений. Парсит данные прямо со страницы поиска.
+                        </p>
+                      </label>
+
+                      <label
+                        className={`flex-1 cursor-pointer border-2 rounded-lg p-4 transition-all ${
+                          !newSource.fastMode
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          checked={!newSource.fastMode}
+                          onChange={() => setNewSource({ ...newSource, fastMode: false })}
+                          className="sr-only"
+                        />
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg">🔍</span>
+                          <span className="font-medium text-gray-900">Детальный</span>
+                        </div>
+                        <p className="text-sm text-gray-500">
+                          ~2 часа на 500 объявлений. Открывает каждое объявление для полных данных.
+                        </p>
+                      </label>
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="block text-sm text-gray-600 mb-2">Что парсить</label>
+                    <label className="block text-sm text-gray-600 mb-2">
+                      Что парсить
+                      {newSource.fastMode && (
+                        <span className="text-xs text-gray-400 ml-2">
+                          (в быстром режиме доступно меньше полей)
+                        </span>
+                      )}
+                    </label>
                     <div className="flex flex-wrap gap-2">
-                      {PARSE_FIELDS.map((field) => (
+                      {PARSE_FIELDS
+                        .filter((field) => !newSource.fastMode || FAST_MODE_FIELDS.includes(field))
+                        .map((field) => (
                         <label key={field} className="flex items-center gap-1 text-sm">
                           <input
                             type="checkbox"
@@ -775,8 +860,20 @@ function AvitoAdminContent() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-gray-900">{source.name}</span>
+                            {/* Режим парсинга */}
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded cursor-pointer ${
+                                source.fastMode
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-blue-100 text-blue-700"
+                              }`}
+                              onClick={() => toggleSourceFastMode(source.id, !source.fastMode)}
+                              title="Кликните для переключения режима"
+                            >
+                              {source.fastMode ? "⚡ быстрый" : "🔍 детальный"}
+                            </span>
                             {source.autoParseEnabled && (
-                              <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded">
+                              <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded">
                                 авто {source.autoParseInterval}ч
                               </span>
                             )}

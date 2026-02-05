@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "rimraf .next/dev/lock && next dev",
-    "dev:clean": "rimraf .next && next dev",
+    "dev": "rimraf .next/dev/lock && next dev --webpack",
+    "dev:clean": "rimraf .next && next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

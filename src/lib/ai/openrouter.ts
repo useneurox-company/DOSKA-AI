@@ -5,34 +5,23 @@
 
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-// === API Key Rotation ===
-// Массив API ключей для ротации (увеличивает throughput в N раз)
-const API_KEYS = [
-  process.env.OPENROUTER_API_KEY,
-  "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",
-  "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",
-  "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",
-  "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",
-].filter((key): key is string => Boolean(key));
-
-let currentKeyIndex = 0;
+// === API Key ===
+const API_KEY = process.env.OPENROUTER_API_KEY || "";
 
 /**
- * Получить следующий API ключ (round-robin)
+ * Получить API ключ
  */
 function getNextApiKey(): string {
-  if (API_KEYS.length === 0) {
-    throw new Error("No OpenRouter API keys configured");
+  if (!API_KEY) {
+    throw new Error("OPENROUTER_API_KEY не установлен в .env");
   }
-  const key = API_KEYS[currentKeyIndex % API_KEYS.length];
-  currentKeyIndex++;
-  return key;
+  return API_KEY;
 }
 
-// Все модели теперь Gemini 3 Flash Preview
-const MODEL_LITE = "google/gemini-3-flash-preview";   // Основная модель для текста
-const MODEL_VISION = "google/gemini-3-flash-preview"; // Для изображений
-const MODEL_SMART = "google/gemini-3-flash-preview";  // Умная модель
+// Бесплатные модели OpenRouter (февраль 2026)
+const MODEL_LITE = "qwen/qwen2.5-vl-32b-instruct:free";      // Qwen 2.5 VL 32B - быстрая
+const MODEL_VISION = "qwen/qwen2.5-vl-72b-instruct:free";    // Qwen 2.5 VL 72B - для vision
+const MODEL_SMART = "tngtech/deepseek-r1t2-chimera:free";    // DeepSeek R1T2 Chimera 671B
 
 // Retry настройки
 const MAX_RETRIES = 3;
@@ -101,10 +90,10 @@ export async function chatCompletion(
   options?: {
     temperature?: number;
     maxTokens?: number;
-    model?: "lite" | "vision" | "smart";  // Все варианты теперь используют Gemini 3 Flash
+    model?: "lite" | "vision" | "smart";  // Все используют бесплатную Gemini 2.0 Flash
   }
 ): Promise<string> {
-  if (API_KEYS.length === 0) {
+  if (!API_KEY) {
     throw new Error("OPENROUTER_API_KEY не установлен в .env");
   }
 
@@ -117,11 +106,9 @@ export async function chatCompletion(
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    // Получаем следующий ключ из пула (round-robin)
     const apiKey = getNextApiKey();
-    const keyIndex = (currentKeyIndex - 1) % API_KEYS.length + 1;
     const modelName = options?.model === "vision" ? "VISION" : options?.model === "smart" ? "SMART" : "LITE";
-    console.log(`[AI] Модель: ${modelName}, Ключ: #${keyIndex}/${API_KEYS.length}`);
+    console.log(`[AI] Модель: ${model} (${modelName})`);
 
     try {
       const response = await fetch(API_URL, {

@@ -68,6 +68,7 @@ export async function PUT(request: Request, { params }: Params) {
         ...(body.searchUrl && { searchUrl: body.searchUrl }),
         ...(body.parseFields && { parseFields: body.parseFields }),
         ...(typeof body.isActive === 'boolean' && { isActive: body.isActive }),
+        ...(typeof body.fastMode === 'boolean' && { fastMode: body.fastMode }),
         ...(body.proxyId !== undefined && { proxyId: body.proxyId }),
         ...(typeof body.autoParseEnabled === 'boolean' && { autoParseEnabled: body.autoParseEnabled }),
         ...(body.autoParseInterval && { autoParseInterval: body.autoParseInterval }),

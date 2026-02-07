@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface City {
   id: string
@@ -29,9 +29,62 @@ export default function Filters({ cities, categories }: FiltersProps) {
   const [priceTo, setPriceTo] = useState(searchParams.get('priceTo') || '')
   const [showFilters, setShowFilters] = useState(false)
   const [showCategories, setShowCategories] = useState(false)
+  const [suggestions, setSuggestions] = useState<{id: string, title: string, price: number | null, category: {name: string} | null}[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
+  const debounceRef = useRef<NodeJS.Timeout>(null)
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
     searchParams.get('categories')?.split(',').filter(Boolean) || []
   )
+
+  // Fetch suggestions with debounce
+  const fetchSuggestions = (query: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (query.length < 2) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/ads/suggestions?q=${encodeURIComponent(query)}`)
+        const data = await res.json()
+        setSuggestions(data)
+        setShowSuggestions(data.length > 0)
+      } catch {
+        setSuggestions([])
+      }
+    }, 300)
+  }
+
+  // Close suggestions on click outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    fetchSuggestions(value)
+  }
+
+  const selectSuggestion = (title: string) => {
+    setSearch(title)
+    setShowSuggestions(false)
+    const params = new URLSearchParams()
+    params.set('search', title)
+    if (source !== 'all') params.set('source', source)
+    if (cityId) params.set('city', cityId)
+    if (priceFrom) params.set('priceFrom', priceFrom)
+    if (priceTo) params.set('priceTo', priceTo)
+    if (selectedCategories.length > 0) params.set('categories', selectedCategories.join(','))
+    router.push(`/?${params.toString()}`)
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -155,8 +208,8 @@ export default function Filters({ cities, categories }: FiltersProps) {
               )}
             </div>
 
-            {/* Search Input */}
-            <div className="flex-1 relative">
+            {/* Search Input with Suggestions */}
+            <div className="flex-1 relative" ref={suggestionsRef}>
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <svg className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -166,7 +219,8 @@ export default function Filters({ cities, categories }: FiltersProps) {
                 type="text"
                 placeholder="Поиск объявлений..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
                 className="w-full pl-12 pr-4 py-3.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all"
                 style={{
                   background: 'var(--input-bg)',
@@ -174,6 +228,40 @@ export default function Filters({ cities, categories }: FiltersProps) {
                   color: 'var(--text-primary)'
                 }}
               />
+              {/* Suggestions Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div
+                  className="absolute top-full left-0 right-0 mt-1 rounded-xl shadow-xl z-50 overflow-hidden"
+                  style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
+                >
+                  {suggestions.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => selectSuggestion(item.title)}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-blue-500/10 transition-colors"
+                      style={{ borderBottom: '1px solid var(--card-border)' }}
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-secondary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>{item.title}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {item.category && (
+                            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{item.category.name}</span>
+                          )}
+                          {item.price && (
+                            <span className="text-xs font-medium text-blue-500">
+                              {item.price.toLocaleString('ru-RU')} ₽
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Upload Estimate Button */}

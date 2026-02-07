@@ -59,6 +59,7 @@ export async function POST(request: Request) {
         searchUrl: body.searchUrl,
         parseFields: body.parseFields || DEFAULT_PARSE_FIELDS,
         proxyId: body.proxyId,
+        fastMode: body.fastMode ?? true, // По умолчанию быстрый режим
         autoParseEnabled: body.autoParseEnabled ?? false,
         autoParseInterval: body.autoParseInterval ?? 24,
       },

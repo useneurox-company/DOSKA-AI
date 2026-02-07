@@ -37,6 +37,7 @@ export interface CreateSourceInput {
   searchUrl: string
   parseFields?: ParseField[]
   proxyId?: string
+  fastMode?: boolean
   autoParseEnabled?: boolean
   autoParseInterval?: number
 }
@@ -47,6 +48,7 @@ export interface UpdateSourceInput {
   searchUrl?: string
   parseFields?: ParseField[]
   isActive?: boolean
+  fastMode?: boolean
   proxyId?: string | null
   autoParseEnabled?: boolean
   autoParseInterval?: number

@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     if (source) {
       if (source === 'verified') {
         where.isVerified = true
+        where.type = { not: 'request' }
       } else if (source === 'telegram') {
         where.source = 'telegram'
       }

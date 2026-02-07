@@ -64,6 +64,7 @@ export default async function HomePage({ searchParams }: PageProps) {
   // Tab filtering (кроме telegram - его обрабатываем отдельно)
   if (activeTab === 'verified') {
     where.isVerified = true
+    where.type = { not: 'request' }
   } else if (activeTab === 'requests') {
     where.type = 'request'
   }
@@ -110,7 +111,7 @@ export default async function HomePage({ searchParams }: PageProps) {
         moderationStatus: 'approved',
       },
     }),
-    prisma.ad.count({ where: { isVerified: true, source: { not: 'telegram' } } }),
+    prisma.ad.count({ where: { isVerified: true, source: { not: 'telegram' }, type: { not: 'request' } } }),
     prisma.ad.count({ where: { type: 'request', source: { not: 'telegram' } } }),
   ])
 

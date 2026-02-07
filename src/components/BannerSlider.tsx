@@ -129,7 +129,7 @@ const slides = [
   },
   {
     title: 'ИИ найдёт поставщика за вас',
-    subtitle: 'Автоматический подбор по цене, локации и рейтингу',
+    subtitle: 'Автоматический подбор поставщиков по цене, локации и рейтингу надёжности',
     bgImage: '/banner/task_01kgvr8hpsfkcbmqfwbr521kbd_1770457974_img_1.webp',
     gradient: 'from-rose-900 via-pink-900 to-fuchsia-900',
     accentColor: 'from-rose-500 to-pink-400',

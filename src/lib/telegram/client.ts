@@ -12,11 +12,13 @@ const clients: Map<string, TelegramClient> = new Map();
 export async function getTelegramClient(phone?: string): Promise<TelegramClient> {
   // If phone specified, get that specific client
   if (phone) {
+    // Check if client already exists in memory (even if not connected)
     const existing = clients.get(phone);
-    if (existing && existing.connected) {
+    if (existing) {
       return existing;
     }
 
+    // Check database for saved session
     const session = await prisma.telegramSession.findUnique({
       where: { phone },
     });
@@ -29,6 +31,14 @@ export async function getTelegramClient(phone?: string): Promise<TelegramClient>
       clients.set(phone, client);
       return client;
     }
+
+    // No session in DB - create new client and save to map for reuse during auth
+    const stringSession = new StringSession("");
+    const client = new TelegramClient(stringSession, apiId, apiHash, {
+      connectionRetries: 5,
+    });
+    clients.set(phone, client);
+    return client;
   }
 
   // Get first active session
@@ -38,7 +48,7 @@ export async function getTelegramClient(phone?: string): Promise<TelegramClient>
 
   if (session) {
     const existing = clients.get(session.phone);
-    if (existing && existing.connected) {
+    if (existing) {
       return existing;
     }
 
@@ -50,7 +60,7 @@ export async function getTelegramClient(phone?: string): Promise<TelegramClient>
     return client;
   }
 
-  // No session found, create new empty client
+  // No session found, create new empty client (without phone - can't save to map)
   const stringSession = new StringSession("");
   const client = new TelegramClient(stringSession, apiId, apiHash, {
     connectionRetries: 5,

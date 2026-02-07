@@ -535,6 +535,23 @@ model AvitoAd {
   publishedAt DateTime?
   parsedAt    DateTime @default(now())
 
+  // === AI Обогащение ===
+  enrichedAt      DateTime?               // Когда было обогащено
+  enrichedData    String?   @db.Text      // JSON с извлечёнными данными
+
+  // Извлечённые поля
+  aiNomenclature  String?                 // Номенклатура (Труба, Балка, Лист и т.д.)
+  aiMaterial      String?                 // Материал/Марка стали (09Г2С, Ст3 и т.д.)
+  aiDimensions    String?                 // Размеры (219x8, 100x100x6 и т.д.)
+  aiWeight        String?                 // Вес/Количество
+  aiCondition     String?                 // Состояние (новая, б/у, лежалая)
+  aiPhone         String?                 // Телефон из описания
+  aiPricePerUnit  String?                 // Цена за единицу (руб/тн, руб/м)
+
+  // Статус модерации
+  moderationStatus String  @default("pending") // pending, approved, rejected
+  moderatedAt      DateTime?
+
   // Связь с источником
   sourceId    String
   source      AvitoSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
@@ -547,6 +564,8 @@ model AvitoAd {
   @@index([price])
   @@index([parsedAt])
   @@index([createdAt])
+  @@index([enrichedAt])
+  @@index([moderationStatus])
 }
 
 // Глобальные настройки автопарсинга Avito

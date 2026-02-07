@@ -32,6 +32,19 @@ interface TelegramAdCard {
   type: 'request' | 'offer' | null
 }
 
+// Интерфейс для карточки Avito
+interface AvitoAdCard {
+  id: string
+  title: string
+  price: number | null
+  city: { name: string }
+  source: string
+  isVerified: boolean
+  createdAt: Date
+  images: { url: string }[]
+  type: 'request' | 'offer' | null
+}
+
 export default async function HomePage({ searchParams }: PageProps) {
   const params = await searchParams
   const page = parseInt(params.page || '1')
@@ -39,8 +52,9 @@ export default async function HomePage({ searchParams }: PageProps) {
   const activeTab = params.tab || 'all'
   const viewMode = params.view || 'grid'
 
-  // Для таба Telegram - загружаем из RawMessage с модерацией
+  // Для таба Telegram / Avito - загружаем из своих таблиц
   const isTelegramTab = activeTab === 'telegram'
+  const isAvitoTab = activeTab === 'avito'
 
   // Build where clause for Ad table
   const where: any = {}
@@ -83,10 +97,11 @@ export default async function HomePage({ searchParams }: PageProps) {
   let ads: any[] = []
   let total = 0
   let telegramCards: TelegramAdCard[] = []
+  let avitoCards: AvitoAdCard[] = []
 
   // Базовые данные (города, категории, счётчики)
   // Исключаем старые telegram карточки из Ad (source='telegram'), используем только RawMessage
-  const [cities, categories, adsWithoutTelegram, totalTelegram, totalVerified, totalRequests] = await Promise.all([
+  const [cities, categories, adsWithoutTelegram, totalTelegram, totalAvito, totalVerified, totalRequests] = await Promise.all([
     prisma.city.findMany({
       orderBy: { name: 'asc' },
     }),
@@ -102,12 +117,19 @@ export default async function HomePage({ searchParams }: PageProps) {
         moderationStatus: 'approved',
       },
     }),
+    // Avito = одобренные карточки из AvitoAd
+    prisma.avitoAd.count({
+      where: {
+        enrichedAt: { not: null },
+        moderationStatus: 'approved',
+      },
+    }),
     prisma.ad.count({ where: { isVerified: true, source: { not: 'telegram' } } }),
     prisma.ad.count({ where: { type: 'request', source: { not: 'telegram' } } }),
   ])
 
-  // Всего = карточки из Ad (без telegram) + одобренные из RawMessage
-  const totalAll = adsWithoutTelegram + totalTelegram
+  // Всего = карточки из Ad (без telegram) + одобренные из RawMessage + Avito
+  const totalAll = adsWithoutTelegram + totalTelegram + totalAvito
 
   if (isTelegramTab) {
     // Загружаем одобренные карточки из RawMessage
@@ -161,6 +183,43 @@ export default async function HomePage({ searchParams }: PageProps) {
     })
 
     total = totalTelegram
+  } else if (isAvitoTab) {
+    // Загружаем одобренные карточки из AvitoAd
+    const avitoAds = await prisma.avitoAd.findMany({
+      where: {
+        enrichedAt: { not: null },
+        moderationStatus: 'approved',
+      },
+      orderBy: { enrichedAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        city: true,
+        images: true,
+        aiNomenclature: true,
+        parsedAt: true,
+        url: true,
+      },
+    })
+
+    avitoCards = avitoAds.map((ad) => ({
+      id: ad.id,
+      title: ad.aiNomenclature ? `${ad.aiNomenclature} — ${ad.title}` : ad.title,
+      price: ad.price,
+      city: { name: ad.city || 'Россия' },
+      source: 'avito',
+      isVerified: true,
+      createdAt: ad.parsedAt,
+      images: Array.isArray(ad.images) && ad.images.length > 0
+        ? [{ url: ad.images[0] as string }]
+        : [],
+      type: 'offer' as const,
+    }))
+
+    total = totalAvito
   } else {
     // Загружаем объявления из Ad (исключаем старые telegram - они заменены на RawMessage)
     const whereWithoutTelegram = { ...where, source: { not: 'telegram' } }
@@ -251,6 +310,21 @@ export default async function HomePage({ searchParams }: PageProps) {
             <span className="text-xs opacity-60">{totalTelegram}</span>
           </Link>
           <Link
+            href={buildTabUrl('avito')}
+            className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl transition-all ${
+              activeTab === 'avito'
+                ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg shadow-purple-500/25'
+                : ''
+            }`}
+            style={activeTab !== 'avito' ? { color: 'var(--text-secondary)' } : undefined}
+          >
+            <svg className="w-4 h-4 text-purple-500" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H8v-2h4v2zm4-4H8v-2h8v2zm0-4H8V7h8v2z"/>
+            </svg>
+            Площадки
+            <span className="text-xs opacity-60">{totalAvito}</span>
+          </Link>
+          <Link
             href={buildTabUrl('verified')}
             className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl transition-all ${
               activeTab === 'verified'
@@ -338,13 +412,29 @@ export default async function HomePage({ searchParams }: PageProps) {
 
       {/* Ads Grid */}
       <main className="max-w-6xl mx-auto px-6 pb-12">
-        {(isTelegramTab ? telegramCards.length : ads.length) > 0 ? (
+        {(isTelegramTab ? telegramCards.length : isAvitoTab ? avitoCards.length : ads.length) > 0 ? (
           <div className={viewMode === 'grid'
             ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
             : "flex flex-col gap-2"
           }>
             {isTelegramTab
               ? telegramCards.map((card) => (
+                  <AdCard
+                    key={card.id}
+                    id={card.id}
+                    title={card.title}
+                    price={card.price}
+                    city={card.city.name}
+                    source={card.source}
+                    isVerified={card.isVerified}
+                    createdAt={card.createdAt}
+                    imageUrl={card.images[0]?.url}
+                    type={card.type}
+                    viewMode={viewMode}
+                  />
+                ))
+              : isAvitoTab
+              ? avitoCards.map((card) => (
                   <AdCard
                     key={card.id}
                     id={card.id}

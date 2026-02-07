@@ -224,8 +224,8 @@ export default function AvitoCardsPage() {
 
             {/* Тип товара */}
             {ad.aiNomenclature && (
-              <span className="px-2 py-1 rounded text-xs font-medium flex-shrink-0 bg-blue-500 text-white">
-                {ad.aiNomenclature}
+              <span className="px-2 py-1 rounded text-xs font-medium flex-shrink-0 bg-blue-500 text-white max-w-[200px] truncate" title={ad.aiNomenclature}>
+                {ad.aiNomenclature.length > 30 ? ad.aiNomenclature.slice(0, 30) + "…" : ad.aiNomenclature}
               </span>
             )}
 
@@ -234,8 +234,8 @@ export default function AvitoCardsPage() {
 
             {/* Размеры */}
             {ad.aiDimensions && (
-              <span className="text-green-600 text-sm hidden lg:block font-medium">
-                {ad.aiDimensions}
+              <span className="text-green-600 text-sm hidden lg:block font-medium max-w-[150px] truncate" title={ad.aiDimensions}>
+                {ad.aiDimensions.length > 20 ? ad.aiDimensions.slice(0, 20) + "…" : ad.aiDimensions}
               </span>
             )}
 
@@ -580,6 +580,9 @@ export default function AvitoCardsPage() {
                   <div className="text-sm">
                     Обработано: {job.processed} | Обогащено: {job.enriched} | Ошибок: {job.errors}
                   </div>
+                  {job.errorMessage && (
+                    <div className="text-xs mt-1 opacity-80">{job.errorMessage}</div>
+                  )}
                 </div>
                 <button
                   onClick={clearJob}

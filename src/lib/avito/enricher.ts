@@ -28,9 +28,10 @@ const AVITO_ENRICHMENT_PROMPT = `Извлеки структурированны
 
 ВАЖНО:
 - Если данные не указаны, ставь null
-- Номенклатуру определяй по ключевым словам (труба, балка, швеллер и т.д.)
-- Размеры извлекай в стандартном формате (диаметр x толщина или высота x ширина x толщина)
+- Номенклатуру определяй КРАТКО — одно-два слова (например: "Труба профильная", "Арматура", "Швеллер"). НЕ перечисляй весь ассортимент!
+- Размеры — укажи ОСНОВНОЙ размер или диапазон кратко (например: "20x20-200x200", "159x6"). НЕ перечисляй все размеры!
 - Марку стали пиши заглавными буквами
+- Все значения должны быть СТРОКАМИ (не массивами!)
 - Верни ТОЛЬКО JSON без комментариев`;
 
 interface EnrichmentResult {
@@ -167,22 +168,35 @@ export async function startAvitoEnrichment(
           currentJob!.processed++;
 
           if (result) {
-            await prisma.avitoAd.update({
-              where: { id: ad.id },
-              data: {
-                enrichedAt: new Date(),
-                enrichedData: JSON.stringify(result),
-                aiNomenclature: result.nomenclature,
-                aiMaterial: result.material,
-                aiDimensions: result.dimensions,
-                aiWeight: result.weight,
-                aiCondition: result.condition,
-                aiPhone: result.phone,
-                aiPricePerUnit: result.pricePerUnit,
-              },
-            });
-            currentJob!.enriched++;
+            try {
+              // AI может вернуть массив вместо строки — приводим к строке
+              const toStr = (v: unknown): string | null => {
+                if (v == null) return null;
+                if (Array.isArray(v)) return v.join(", ");
+                return String(v);
+              };
+              await prisma.avitoAd.update({
+                where: { id: ad.id },
+                data: {
+                  enrichedAt: new Date(),
+                  enrichedData: JSON.stringify(result),
+                  aiNomenclature: toStr(result.nomenclature),
+                  aiMaterial: toStr(result.material),
+                  aiDimensions: toStr(result.dimensions),
+                  aiWeight: toStr(result.weight),
+                  aiCondition: toStr(result.condition),
+                  aiPhone: toStr(result.phone),
+                  aiPricePerUnit: toStr(result.pricePerUnit),
+                },
+              });
+              currentJob!.enriched++;
+              console.log(`[Avito Enricher] ✓ ${ad.title.slice(0, 50)} → ${result.nomenclature || "?"}`);
+            } catch (dbError) {
+              console.error(`[Avito Enricher] DB Error для "${ad.title}":`, dbError);
+              currentJob!.errors++;
+            }
           } else {
+            console.error(`[Avito Enricher] AI вернул null для "${ad.title}"`);
             currentJob!.errors++;
           }
         }

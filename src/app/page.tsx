@@ -15,6 +15,7 @@ interface PageProps {
     tab?: string
     priceFrom?: string
     priceTo?: string
+    categories?: string
     view?: 'grid' | 'list'
   }>
 }
@@ -60,10 +61,10 @@ export default async function HomePage({ searchParams }: PageProps) {
   const where: any = {}
 
   if (params.search) {
-    where.title = {
-      contains: params.search,
-      mode: 'insensitive',
-    }
+    where.OR = [
+      { title: { contains: params.search, mode: 'insensitive' } },
+      { description: { contains: params.search, mode: 'insensitive' } },
+    ]
   }
 
   if (params.source && params.source !== 'all') {
@@ -91,6 +92,13 @@ export default async function HomePage({ searchParams }: PageProps) {
 
   if (params.priceTo) {
     where.price = { ...where.price, lte: parseInt(params.priceTo) }
+  }
+
+  if (params.categories) {
+    const categoryIds = params.categories.split(',').filter(Boolean)
+    if (categoryIds.length > 0) {
+      where.categoryId = { in: categoryIds }
+    }
   }
 
   // Загружаем данные

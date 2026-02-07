@@ -14,6 +14,44 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
+// === ГОРОДА ===
+const cities = [
+  "Москва",
+  "Санкт-Петербург",
+  "Новосибирск",
+  "Екатеринбург",
+  "Казань",
+  "Нижний Новгород",
+  "Челябинск",
+  "Самара",
+  "Омск",
+  "Ростов-на-Дону",
+  "Уфа",
+  "Красноярск",
+  "Воронеж",
+  "Пермь",
+  "Волгоград",
+  "Краснодар",
+  "Тюмень",
+  "Саратов",
+  "Тольятти",
+  "Ижевск",
+];
+
+// === КАТЕГОРИИ ДЛЯ ОБЪЯВЛЕНИЙ ===
+const adCategories = [
+  { name: "Металлопрокат", slug: "metal" },
+  { name: "Трубы", slug: "pipes" },
+  { name: "Арматура", slug: "rebar" },
+  { name: "Металлоконструкции", slug: "metalwork" },
+  { name: "ЛСТК", slug: "lstk" },
+  { name: "Сэндвич-панели", slug: "sandwich" },
+  { name: "Профлист", slug: "proflist" },
+  { name: "Оборудование", slug: "equipment" },
+  { name: "Услуги", slug: "services" },
+  { name: "Другое", slug: "other" },
+];
+
 // === ДАННЫЕ ДЛЯ СПРАВОЧНИКА ЗАЯВОК ===
 const requestCatalog = {
   metal: {
@@ -357,8 +395,36 @@ async function seedEnrichmentCategories() {
   }
 }
 
+async function seedCities() {
+  console.log("Seeding Cities...");
+  for (const cityName of cities) {
+    await prisma.city.upsert({
+      where: { name: cityName },
+      update: {},
+      create: { name: cityName },
+    });
+    console.log("  City:", cityName);
+  }
+}
+
+async function seedAdCategories() {
+  console.log("Seeding Ad Categories...");
+  for (const cat of adCategories) {
+    await prisma.category.upsert({
+      where: { slug: cat.slug },
+      update: { name: cat.name },
+      create: { name: cat.name, slug: cat.slug },
+    });
+    console.log("  Category:", cat.name);
+  }
+}
+
 async function main() {
   console.log("Starting seed...\n");
+  await seedCities();
+  console.log("");
+  await seedAdCategories();
+  console.log("");
   await seedRequestCatalog();
   console.log("");
   await seedOfferCatalog();

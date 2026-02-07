@@ -12,6 +12,7 @@ model User {
   password        String
   name            String?
   phone           String?
+  avatar          String?                   // URL аватарки
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   ads             Ad[]
@@ -44,6 +45,10 @@ model Ad {
   sourceUrl   String?
   isVerified  Boolean   @default(false)
   type        String?   // "request" | "offer" - Куплю / Продам
+
+  // Статистика
+  views       Int       @default(0)       // Кол-во просмотров
+  responses   Int       @default(0)       // Кол-во откликов
 
   // Контакты
   contactPhone    String?  // Телефон для связи

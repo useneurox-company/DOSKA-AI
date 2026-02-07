@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
+import UploadModal from './UploadModal'
 
 interface City {
   id: string
@@ -31,6 +32,7 @@ export default function Filters({ cities, categories }: FiltersProps) {
   const [showCategories, setShowCategories] = useState(false)
   const [suggestions, setSuggestions] = useState<{id: string, title: string, price: number | null, category: {name: string} | null}[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
   const suggestionsRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<NodeJS.Timeout>(null)
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
@@ -267,6 +269,7 @@ export default function Filters({ cities, categories }: FiltersProps) {
             {/* Upload Estimate Button */}
             <button
               type="button"
+              onClick={() => setShowUploadModal(true)}
               className="w-12 h-12 flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-400 hover:to-purple-400 transition-all shadow-lg shadow-purple-500/25"
               title="Загрузить смету"
             >
@@ -483,6 +486,9 @@ export default function Filters({ cities, categories }: FiltersProps) {
           </div>
         )}
       </div>
+
+      {/* Upload Modal */}
+      {showUploadModal && <UploadModal onClose={() => setShowUploadModal(false)} />}
     </section>
   )
 }

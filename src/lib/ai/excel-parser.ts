@@ -199,21 +199,10 @@ function parseRow(
 }
 
 /**
- * Парсинг Excel файла
+ * Парсинг Excel/CSV из Buffer (универсальная функция)
  */
-export function parseExcelFile(filePath: string): ExcelItem[] {
-  // Проверяем существование файла
-  const fullPath = filePath.startsWith("/")
-    ? path.join(process.cwd(), "public", filePath)
-    : filePath;
-
-  if (!fs.existsSync(fullPath)) {
-    console.error(`[ExcelParser] Файл не найден: ${fullPath}`);
-    return [];
-  }
-
+export function parseExcelBuffer(buffer: Buffer): ExcelItem[] {
   try {
-    const buffer = fs.readFileSync(fullPath);
     const workbook = XLSX.read(buffer, { type: "buffer" });
 
     const items: ExcelItem[] = [];
@@ -227,7 +216,7 @@ export function parseExcelFile(filePath: string): ExcelItem[] {
 
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
-      header: 1, // Получаем массив массивов
+      header: 1,
       defval: "",
     });
 
@@ -271,6 +260,23 @@ export function parseExcelFile(filePath: string): ExcelItem[] {
     console.error("[ExcelParser] Ошибка парсинга:", error);
     return [];
   }
+}
+
+/**
+ * Парсинг Excel файла с диска (обёртка над parseExcelBuffer)
+ */
+export function parseExcelFile(filePath: string): ExcelItem[] {
+  const fullPath = filePath.startsWith("/")
+    ? path.join(process.cwd(), "public", filePath)
+    : filePath;
+
+  if (!fs.existsSync(fullPath)) {
+    console.error(`[ExcelParser] Файл не найден: ${fullPath}`);
+    return [];
+  }
+
+  const buffer = fs.readFileSync(fullPath);
+  return parseExcelBuffer(buffer);
 }
 
 /**

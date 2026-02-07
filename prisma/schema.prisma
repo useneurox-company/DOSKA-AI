@@ -55,6 +55,9 @@ model Ad {
   contactUsername String?  // @username в Telegram
   contactName     String?  // Имя контактного лица
 
+  // Структурированные позиции из файла (КП)
+  items       Json?     // [{nomenclature, quantity, price, unit, size, grade, categoryName}]
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

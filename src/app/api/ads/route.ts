@@ -56,9 +56,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
     }
 
-    const { title, description, price, cityId, categoryId, images } = await request.json()
+    const { title, description, price, cityId, categoryId, images, items, type } = await request.json()
 
-    if (!title || !price || !cityId || !categoryId) {
+    if (!title || price === undefined || !cityId || !categoryId) {
       return NextResponse.json(
         { error: 'Заполните обязательные поля' },
         { status: 400 }
@@ -75,6 +75,8 @@ export async function POST(request: NextRequest) {
         userId: session.user.id,
         source: 'user',
         isVerified: true,
+        type: type || null,
+        items: items || undefined,
         // Создаём записи изображений если они есть
         images: images && images.length > 0 ? {
           create: images.map((url: string) => ({ url }))

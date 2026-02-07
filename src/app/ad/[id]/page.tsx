@@ -577,6 +577,71 @@ export default async function AdPage({ params }: PageProps) {
               </div>
             )}
 
+            {/* КП Items Table */}
+            {ad.items && Array.isArray(ad.items) && (ad.items as Array<Record<string, unknown>>).length > 0 && (() => {
+              const adItems = ad.items as Array<{
+                nomenclature?: string
+                quantity?: number
+                unit?: string
+                price?: number
+                size?: string
+                grade?: string
+                categoryName?: string
+              }>
+
+              // Group by category
+              const grouped = new Map<string, typeof adItems>()
+              adItems.forEach(item => {
+                const cat = item.categoryName || 'Прочее'
+                if (!grouped.has(cat)) grouped.set(cat, [])
+                grouped.get(cat)!.push(item)
+              })
+
+              return (
+                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                    Позиции КП
+                    <span className="ml-2 text-sm font-normal text-gray-500">({adItems.length} поз.)</span>
+                  </h2>
+                  <div className="space-y-4">
+                    {[...grouped.entries()].map(([category, categoryItems]) => (
+                      <div key={category}>
+                        <h3 className="text-sm font-semibold text-blue-600 mb-2 px-1">{category}</h3>
+                        <div className="overflow-x-auto rounded-lg border border-gray-100">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gray-50">
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Наименование</th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Кол-во</th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Цена</th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Размер</th>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Марка</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {categoryItems.map((item, idx) => (
+                                <tr key={idx} className="border-t border-gray-50">
+                                  <td className="px-3 py-2 text-gray-900 font-medium">{item.nomenclature || '-'}</td>
+                                  <td className="px-3 py-2 text-gray-600">
+                                    {item.quantity ? `${item.quantity} ${item.unit || ''}`.trim() : '-'}
+                                  </td>
+                                  <td className="px-3 py-2 text-gray-600">
+                                    {item.price ? `${item.price.toLocaleString('ru-RU')} ₽` : '-'}
+                                  </td>
+                                  <td className="px-3 py-2 text-gray-600">{item.size || '-'}</td>
+                                  <td className="px-3 py-2 text-gray-600">{item.grade || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Details */}
             <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Детали</h2>

@@ -38,11 +38,19 @@ export default function AvitoLandingPage() {
       description: "Просмотр и экспорт",
       color: "green",
     },
+    {
+      href: "/admin/avito/cards",
+      icon: "🤖",
+      title: "Карточки",
+      description: "AI обогащение и карточки",
+      color: "purple",
+    },
   ];
 
   const colorClasses: Record<string, { bg: string; border: string; text: string }> = {
     blue: { bg: "bg-blue-50", border: "hover:border-blue-500", text: "text-blue-600" },
     green: { bg: "bg-green-50", border: "hover:border-green-500", text: "text-green-600" },
+    purple: { bg: "bg-purple-50", border: "hover:border-purple-500", text: "text-purple-600" },
   };
 
   return (

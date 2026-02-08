@@ -18,10 +18,10 @@ function getNextApiKey(): string {
   return API_KEY;
 }
 
-// Бесплатные модели OpenRouter (февраль 2026)
-const MODEL_LITE = "qwen/qwen2.5-vl-32b-instruct:free";      // Qwen 2.5 VL 32B - быстрая
-const MODEL_VISION = "qwen/qwen2.5-vl-72b-instruct:free";    // Qwen 2.5 VL 72B - для vision
-const MODEL_SMART = "tngtech/deepseek-r1t2-chimera:free";    // DeepSeek R1T2 Chimera 671B
+// Модели OpenRouter (февраль 2026)
+const MODEL_LITE = "google/gemini-3-flash-preview";          // Gemini 3 Flash - быстрая
+const MODEL_VISION = "google/gemini-3-flash-preview";        // Gemini 3 Flash - для vision
+const MODEL_SMART = "google/gemini-3-flash-preview";         // Gemini 3 Flash - умная
 
 // Retry настройки
 const MAX_RETRIES = 3;

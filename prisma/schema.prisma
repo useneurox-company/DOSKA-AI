@@ -54,6 +54,7 @@ model Ad {
   contactPhone    String?  // Телефон для связи
   contactUsername String?  // @username в Telegram
   contactName     String?  // Имя контактного лица
+  address         String?  // Адрес доставки
 
   // Структурированные позиции из файла (КП)
   items       Json?     // [{nomenclature, quantity, price, unit, size, grade, categoryName}]

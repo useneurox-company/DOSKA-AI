@@ -7,12 +7,6 @@ import { authOptions } from '../auth/[...nextauth]/route'
 
 export async function POST(request: NextRequest) {
   try {
-    // Проверяем авторизацию
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
-    }
-
     const formData = await request.formData()
     const files = formData.getAll('images') as File[]
 

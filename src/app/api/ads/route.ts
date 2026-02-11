@@ -53,11 +53,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
-    }
-
-    const { title, description, price, cityId, categoryId, images, items, type } = await request.json()
+    const { title, description, price, cityId, categoryId, images, items, type, contactName, contactPhone, address } = await request.json()
 
     if (!title || price === undefined || !cityId || !categoryId) {
       return NextResponse.json(
@@ -73,11 +69,14 @@ export async function POST(request: NextRequest) {
         price: typeof price === 'string' ? parseInt(price) : price,
         cityId,
         categoryId,
-        userId: session.user.id,
+        userId: session?.user?.id || null,
         source: 'user',
         isVerified: true,
         type: type || null,
         items: items || undefined,
+        contactName: contactName || null,
+        contactPhone: contactPhone || null,
+        address: address || null,
         // Создаём записи изображений если они есть
         images: images && images.length > 0 ? {
           create: images.map((url: string) => ({ url }))

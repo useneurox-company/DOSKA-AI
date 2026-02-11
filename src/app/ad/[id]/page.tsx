@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Header from '@/components/Header'
+import SupplierMatches from '@/components/SupplierMatches'
+import RequestMatches from '@/components/RequestMatches'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 
@@ -642,10 +644,26 @@ export default async function AdPage({ params }: PageProps) {
               )
             })()}
 
+            {/* Supplier Matches — only for request-type ads */}
+            {ad.type === 'request' && (
+              <SupplierMatches adId={ad.id} />
+            )}
+
+            {/* Request Matches — only for offer/supplier-type ads */}
+            {ad.type !== 'request' && (
+              <RequestMatches adId={ad.id} />
+            )}
+
             {/* Details */}
             <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Детали</h2>
               <div className="grid grid-cols-2 gap-6">
+                {ad.address && (
+                  <div className="col-span-2">
+                    <span className="text-sm text-gray-500">Адрес доставки</span>
+                    <p className="font-medium text-gray-900 mt-1">{ad.address}</p>
+                  </div>
+                )}
                 <div>
                   <span className="text-sm text-gray-500">Город</span>
                   <p className="font-medium text-gray-900 mt-1">{ad.city.name}</p>
@@ -670,10 +688,10 @@ export default async function AdPage({ params }: PageProps) {
           <div className="space-y-6">
             {/* Contact Card */}
             <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm sticky top-24">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Контакты продавца</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{ad.type === 'request' ? 'Контакты заявителя' : 'Контакты продавца'}</h3>
 
-              {session ? (
-                // Authorized - show contacts
+              {(session || ad.contactName || ad.contactPhone) ? (
+                // Show contacts: always for user-provided contacts, or when authorized
                 <>
                   {contacts.name && (
                     <div className="flex items-center gap-3 mb-4">
@@ -682,7 +700,7 @@ export default async function AdPage({ params }: PageProps) {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{contacts.name}</p>
-                        <p className="text-sm text-gray-500">Продавец</p>
+                        <p className="text-sm text-gray-500">{ad.type === 'request' ? 'Заявитель' : 'Продавец'}</p>
                       </div>
                     </div>
                   )}
